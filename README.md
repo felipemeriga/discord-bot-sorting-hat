@@ -1,14 +1,14 @@
-# Discord Sorting Bot
+# discord-bot-sorting-hat
 
-Um bot de Discord escrito em Rust que seleciona novos membros para casas através de um quiz interativo. Quando novos membros entram no servidor, eles recebem uma mensagem direta com perguntas em português e, com base nas respostas, são designados para uma das quatro casas e recebem o cargo correspondente.
+A Discord bot written in Rust that sorts new members into houses through an interactive quiz. When new members join the server, they receive a direct message with questions in Portuguese and, based on their answers, are assigned to one of four houses with the corresponding role.
 
 ## Features
 
-- Detecta automaticamente quando novos membros entram no servidor
-- Envia um quiz privado via DM para novos membros (em português)
-- Seleciona membros para uma das quatro casas baseado nas respostas
-- Atribui automaticamente o cargo apropriado da casa
-- Completamente configurável: casas, cargos, perguntas e mapeamento de traços
+- Automatically detects when new members join the server
+- Sends a private quiz via DM to new members (questions in Portuguese)
+- Sorts members into one of four houses based on their answers
+- Automatically assigns the appropriate house role
+- Fully configurable: houses, roles, questions, and trait mapping
 
 ## Prerequisites
 
@@ -37,10 +37,10 @@ Um bot de Discord escrito em Rust que seleciona novos membros para casas atravé
 ## Server Setup
 
 1. Create four roles in your Discord server matching the house names in `config.json`:
-   - 🐉 **Draco** (Vermelho #D7263D e Dourado #F5C400)
-   - 🐺 **Lupus** (Cinza #4F4F4F e Preto #000000)
-   - 🐯 **Tigris** (Azul Royal #1A56DB e Dourado #E3AC00)
-   - 🦅 **Aeternum** (Roxo #6B2FB7 e Prata #CFCFCF)
+   - Draco (Red #D7263D and Gold #F5C400)
+   - Lupus (Gray #4F4F4F and Black #000000)
+   - Tigris (Royal Blue #1A56DB and Gold #E3AC00)
+   - Aeternum (Purple #6B2FB7 and Silver #CFCFCF)
 
 2. Make sure the bot's role is positioned ABOVE these house roles in the server settings
    (Server Settings > Roles > Drag the bot role above house roles)
@@ -56,32 +56,32 @@ Um bot de Discord escrito em Rust que seleciona novos membros para casas atravé
 
 ### About the Houses
 
-🐉 **Casa Draco**
-- **Valores**: Coragem, criatividade, iniciativa, intensidade
-- **Frase**: "Onde criamos, queimamos limites."
-- **Descrição**: Casa dos líderes ousados, criativos e movidos a ação.
+**Draco**
+- **Values**: Courage, creativity, initiative, intensity
+- **Motto**: "Onde criamos, queimamos limites." (Where we create, we burn limits.)
+- **Description**: House of bold leaders, creative and driven by action.
 
-🐺 **Casa Lupus**
-- **Valores**: Lealdade, disciplina, comunidade, foco
-- **Frase**: "Sozinho você vai rápido. Em equipe você vai longe."
-- **Descrição**: Casa dos disciplinados, colaborativos e unidos como uma alcateia.
+**Lupus**
+- **Values**: Loyalty, discipline, community, focus
+- **Motto**: "Sozinho vai rapido. Em equipe vai longe." (Alone you go fast. Together you go far.)
+- **Description**: House of the disciplined, collaborative, and united like a pack.
 
-🐯 **Casa Tigris**
-- **Valores**: Ambição, excelência, foco, alta performance
-- **Frase**: "Nada menos que o melhor."
-- **Descrição**: Casa dos ambiciosos, performáticos e focados em excelência.
+**Tigris**
+- **Values**: Ambition, excellence, focus, high performance
+- **Motto**: "Nada menos que o melhor." (Nothing less than the best.)
+- **Description**: House of the ambitious, high-performers focused on excellence.
 
-🦅 **Casa Aeternum**
-- **Valores**: Liberdade, inovação, visão, autonomia
-- **Frase**: "Enxerga além do código."
-- **Descrição**: Casa dos visionários, criativos e livres.
+**Aeternum**
+- **Values**: Freedom, innovation, vision, autonomy
+- **Motto**: "Enxerga alem do codigo." (See beyond the code.)
+- **Description**: House of visionaries, creative and free.
 
 ## Installation
 
 1. Clone this repository:
 ```bash
 git clone <your-repo-url>
-cd discord-bot
+cd discord-bot-sorting-hat
 ```
 
 2. Create a `.env` file from the example:
@@ -110,7 +110,7 @@ cargo run --release
 The `houses` array defines the available houses. Each house has:
 - `name`: Display name of the house
 - `role_name`: The exact name of the role in Discord (must match exactly)
-- `description`: Description shown when a user is sorted
+- `description`: Description shown when a user is sorted (in Portuguese)
 - `traits`: Array of traits associated with this house
 
 ### Questions (`config.json`)
@@ -135,6 +135,11 @@ The sorting algorithm calculates which house a user should join based on the tot
    - Determines which house best matches those traits (Draco, Lupus, Tigris, or Aeternum)
    - Assigns the corresponding role to the user
    - Notifies them of their house assignment in Portuguese
+
+## Commands
+
+- `!testsort` - Start a test sorting session (useful for testing the bot)
+- `!resetsort` - Reset your current sorting session if you want to start over
 
 ## Troubleshooting
 
