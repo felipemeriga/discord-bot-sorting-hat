@@ -8,6 +8,8 @@ A Discord bot written in Rust that sorts new members into houses through an inte
 - Sends a private quiz via DM to new members (questions in Portuguese)
 - Sorts members into one of four houses based on their answers
 - Automatically assigns the appropriate house role
+- Persistent storage: remembers sorted users even after bot restarts
+- Prevents users from being sorted multiple times
 - Fully configurable: houses, roles, questions, and trait mapping
 
 ## Prerequisites
@@ -125,21 +127,45 @@ Each option has:
 
 The sorting algorithm calculates which house a user should join based on the total points accumulated for each trait. The current configuration includes 5 questions designed to identify personality traits aligned with each house's values.
 
+### Data Persistence (`sorted_users.json`)
+
+The bot automatically creates and maintains a `sorted_users.json` file to persist information about users who have been sorted. This ensures that:
+
+- Users are only sorted once, even if they leave and rejoin the server
+- Sorted user data persists across bot restarts
+- Users attempting to sort again receive a message indicating their existing house
+
+The file is created automatically on first sort and updated each time a user completes the sorting process. You don't need to manually create or edit this file.
+
+**Example format:**
+```json
+{
+  "123456789012345678": {
+    "house_name": "Draco",
+    "sorted_at": "2025-01-15T10:30:00Z"
+  }
+}
+```
+
+**Note:** If you want to allow a user to be sorted again, you can manually remove their entry from this file (make sure the bot is stopped when editing).
+
 ## How It Works
 
-1. When a new member joins the server, the bot sends them a DM in Portuguese
-2. The bot asks a series of questions (defined in `config.json`)
-3. The user responds by entering a number (1-4)
-4. After all questions are answered, the bot:
+1. When a new member joins the server, the bot checks if they've been sorted before
+2. If they have been sorted before, they receive a welcome back message with their house
+3. If they haven't been sorted, the bot sends them a DM in Portuguese with quiz questions
+4. The user responds by entering a number (1-4) for each question
+5. After all questions are answered, the bot:
    - Calculates trait scores based on the user's answers
    - Determines which house best matches those traits (Draco, Lupus, Tigris, or Aeternum)
    - Assigns the corresponding role to the user
+   - Saves the result to `sorted_users.json` for persistence
    - Notifies them of their house assignment in Portuguese
 
 ## Commands
 
-- `!testsort` - Start a test sorting session (useful for testing the bot)
-- `!resetsort` - Reset your current sorting session if you want to start over
+- `!testsort` - Start a test sorting session (useful for testing the bot). Note: This will not work if you have already been sorted.
+- `!resetsort` - Reset your current sorting session if you want to start over (only cancels an active quiz, doesn't allow re-sorting)
 
 ## Troubleshooting
 
@@ -157,6 +183,15 @@ The sorting algorithm calculates which house a user should join based on the tot
 - Check that `config.json` is valid JSON
 - Verify all required environment variables are set in `.env`
 - Ensure the IDs in `.env` are valid numbers
+
+### User wants to be sorted again
+- The bot intentionally prevents users from being sorted multiple times
+- To allow a user to be sorted again:
+  1. Stop the bot
+  2. Open `sorted_users.json`
+  3. Remove the user's entry (the key will be their Discord user ID)
+  4. Save the file
+  5. Restart the bot
 
 ## Development
 
