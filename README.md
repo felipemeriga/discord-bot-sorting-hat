@@ -127,15 +127,18 @@ Each option has:
 
 The sorting algorithm calculates which house a user should join based on the total points accumulated for each trait. The current configuration includes 5 questions designed to identify personality traits aligned with each house's values.
 
-### Data Persistence (`sorted_users.json`)
+### Data Persistence
 
-The bot automatically creates and maintains a `sorted_users.json` file to persist information about users who have been sorted. This ensures that:
+The bot supports two storage backends for persisting sorted user data:
 
-- Users are only sorted once, even if they leave and rejoin the server
-- Sorted user data persists across bot restarts
-- Users attempting to sort again receive a message indicating their existing house
+#### Local Storage (Default - Development)
 
-The file is created automatically on first sort and updated each time a user completes the sorting process. You don't need to manually create or edit this file.
+Uses a local `sorted_users.json` file on the filesystem.
+
+**Configuration in `.env`:**
+```env
+STORAGE_TYPE=local
+```
 
 **Example format:**
 ```json
@@ -147,7 +150,55 @@ The file is created automatically on first sort and updated each time a user com
 }
 ```
 
-**Note:** If you want to allow a user to be sorted again, you can manually remove their entry from this file (make sure the bot is stopped when editing).
+**Pros**: Simple, no external dependencies
+**Cons**: Data lost if file is deleted, not suitable for production
+
+**Note:** To allow a user to be sorted again, stop the bot, remove their entry from the file, and restart.
+
+#### AWS S3 Storage (Recommended - Production)
+
+Stores sorted user data in an AWS S3 bucket for durable, cloud-based persistence.
+
+**Configuration in `.env`:**
+```env
+STORAGE_TYPE=s3
+S3_BUCKET_NAME=your-discord-bot-bucket
+S3_STORAGE_KEY=sorted_users.json  # Optional, defaults to sorted_users.json
+```
+
+**AWS Credentials:**
+The bot uses the AWS SDK's default credential chain. You can provide credentials via:
+- Environment variables (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`)
+- AWS credentials file (`~/.aws/credentials`)
+- IAM role (if running on EC2/ECS)
+- AWS SSO
+
+**S3 Bucket Setup:**
+1. Create an S3 bucket in your AWS account
+2. Ensure the bot has permissions for:
+   - `s3:GetObject` - Read sorted users
+   - `s3:PutObject` - Save sorted users
+3. The bucket can be private (bot only needs programmatic access)
+
+**Example IAM Policy:**
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": "arn:aws:s3:::your-discord-bot-bucket/sorted_users.json"
+    }
+  ]
+}
+```
+
+**Pros**: Durable, backed up automatically, survives server failures/migrations
+**Cons**: Requires AWS account, small storage cost (~$0.023/GB/month)
 
 ## How It Works
 
@@ -186,12 +237,25 @@ The file is created automatically on first sort and updated each time a user com
 
 ### User wants to be sorted again
 - The bot intentionally prevents users from being sorted multiple times
-- To allow a user to be sorted again:
+- **For local storage:**
   1. Stop the bot
   2. Open `sorted_users.json`
   3. Remove the user's entry (the key will be their Discord user ID)
   4. Save the file
   5. Restart the bot
+- **For S3 storage:**
+  1. Stop the bot
+  2. Download the object from S3, edit it, and re-upload
+  3. Or use AWS CLI: `aws s3 cp s3://your-bucket/sorted_users.json . && edit && aws s3 cp sorted_users.json s3://your-bucket/`
+  4. Restart the bot
+
+### S3 Storage issues
+- **"Failed to initialize storage"**: Check that `S3_BUCKET_NAME` is set in `.env`
+- **"Failed to load from S3: Access Denied"**: Verify AWS credentials and IAM permissions
+- **"Failed to load from S3: NoSuchBucket"**: Create the S3 bucket first
+- Check AWS credentials are configured correctly:
+  - Run `aws s3 ls s3://your-bucket-name` to test access
+  - Ensure the bot process has access to AWS credentials
 
 ## Development
 
