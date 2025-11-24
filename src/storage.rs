@@ -21,7 +21,58 @@ use std::env;
 use std::fs;
 use std::path::Path;
 use std::sync::Arc;
+use thiserror::Error;
 use tokio::sync::RwLock;
+
+/// Errors that can occur during storage operations.
+#[derive(Debug, Error)]
+pub enum StorageError {
+    /// Error reading from local file storage.
+    #[error("Failed to read local storage file '{path}': {source}")]
+    LocalReadError {
+        path: String,
+        source: std::io::Error,
+    },
+
+    /// Error writing to local file storage.
+    #[error("Failed to write local storage file '{path}': {source}")]
+    LocalWriteError {
+        path: String,
+        source: std::io::Error,
+    },
+
+    /// Error parsing JSON data.
+    #[error("Failed to parse storage JSON: {0}")]
+    JsonParseError(#[from] serde_json::Error),
+
+    /// Error reading from S3 storage.
+    #[error("Failed to read from S3 bucket '{bucket}', key '{key}': {details}")]
+    S3ReadError {
+        bucket: String,
+        key: String,
+        details: String,
+    },
+
+    /// Error writing to S3 storage.
+    #[error("Failed to write to S3 bucket '{bucket}', key '{key}': {details}")]
+    S3WriteError {
+        bucket: String,
+        key: String,
+        details: String,
+    },
+
+    /// Error converting S3 response body to bytes.
+    #[error("Failed to read S3 object body: {0}")]
+    S3BodyReadError(String),
+
+    /// Error decoding S3 object as UTF-8.
+    #[error("S3 object is not valid UTF-8: {0}")]
+    S3Utf8Error(#[from] std::string::FromUtf8Error),
+
+    /// Configuration error.
+    #[error("Configuration error: {0}")]
+    ConfigError(String),
+}
 
 /// Default filename for local storage.
 const LOCAL_STORAGE_FILE: &str = "sorted_users.json";
@@ -46,10 +97,10 @@ pub struct SortedUser {
 #[async_trait]
 pub trait StorageBackend: Send + Sync {
     /// Loads all sorted users from storage.
-    async fn load(&self) -> Result<HashMap<String, SortedUser>, String>;
+    async fn load(&self) -> Result<HashMap<String, SortedUser>, StorageError>;
 
     /// Saves all sorted users to storage.
-    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), String>;
+    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), StorageError>;
 }
 
 /// Local JSON file storage backend.
@@ -72,28 +123,32 @@ impl LocalStorage {
 
 #[async_trait]
 impl StorageBackend for LocalStorage {
-    async fn load(&self) -> Result<HashMap<String, SortedUser>, String> {
+    async fn load(&self) -> Result<HashMap<String, SortedUser>, StorageError> {
         if !Path::new(&self.file_path).exists() {
             tracing::info!("Local storage file not found, starting with empty list");
             return Ok(HashMap::new());
         }
 
-        let content = fs::read_to_string(&self.file_path)
-            .map_err(|e| format!("Failed to read local storage: {:?}", e))?;
+        let content = fs::read_to_string(&self.file_path).map_err(|e| {
+            StorageError::LocalReadError {
+                path: self.file_path.clone(),
+                source: e,
+            }
+        })?;
 
-        let users: HashMap<String, SortedUser> = serde_json::from_str(&content)
-            .map_err(|e| format!("Failed to parse local storage: {:?}", e))?;
+        let users: HashMap<String, SortedUser> = serde_json::from_str(&content)?;
 
         tracing::info!("Loaded {} users from local storage", users.len());
         Ok(users)
     }
 
-    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), String> {
-        let json = serde_json::to_string_pretty(users)
-            .map_err(|e| format!("Failed to serialize users: {:?}", e))?;
+    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), StorageError> {
+        let json = serde_json::to_string_pretty(users)?;
 
-        fs::write(&self.file_path, json)
-            .map_err(|e| format!("Failed to write local storage: {:?}", e))?;
+        fs::write(&self.file_path, json).map_err(|e| StorageError::LocalWriteError {
+            path: self.file_path.clone(),
+            source: e,
+        })?;
 
         tracing::debug!("Saved {} users to local storage", users.len());
         Ok(())
@@ -116,7 +171,7 @@ impl S3Storage {
     ///
     /// * `bucket_name` - The S3 bucket name.
     /// * `object_key` - The S3 object key (file name in bucket).
-    pub async fn new(bucket_name: String, object_key: String) -> Result<Self, String> {
+    pub async fn new(bucket_name: String, object_key: String) -> Result<Self, StorageError> {
         let config = aws_config::load_defaults(BehaviorVersion::latest()).await;
         let client = S3Client::new(&config);
 
@@ -136,7 +191,7 @@ impl S3Storage {
 
 #[async_trait]
 impl StorageBackend for S3Storage {
-    async fn load(&self) -> Result<HashMap<String, SortedUser>, String> {
+    async fn load(&self) -> Result<HashMap<String, SortedUser>, StorageError> {
         match self
             .client
             .get_object()
@@ -150,14 +205,12 @@ impl StorageBackend for S3Storage {
                     .body
                     .collect()
                     .await
-                    .map_err(|e| format!("Failed to read S3 object body: {:?}", e))?
+                    .map_err(|e| StorageError::S3BodyReadError(e.to_string()))?
                     .into_bytes();
 
-                let content = String::from_utf8(bytes.to_vec())
-                    .map_err(|e| format!("S3 object is not valid UTF-8: {:?}", e))?;
+                let content = String::from_utf8(bytes.to_vec())?;
 
-                let users: HashMap<String, SortedUser> = serde_json::from_str(&content)
-                    .map_err(|e| format!("Failed to parse S3 storage: {:?}", e))?;
+                let users: HashMap<String, SortedUser> = serde_json::from_str(&content)?;
 
                 tracing::info!("Loaded {} users from S3 storage", users.len());
                 Ok(users)
@@ -168,15 +221,18 @@ impl StorageBackend for S3Storage {
                     tracing::info!("S3 object not found, starting with empty list");
                     Ok(HashMap::new())
                 } else {
-                    Err(format!("Failed to load from S3: {:?}", e))
+                    Err(StorageError::S3ReadError {
+                        bucket: self.bucket_name.clone(),
+                        key: self.object_key.clone(),
+                        details: e.to_string(),
+                    })
                 }
             }
         }
     }
 
-    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), String> {
-        let json = serde_json::to_string_pretty(users)
-            .map_err(|e| format!("Failed to serialize users: {:?}", e))?;
+    async fn save(&self, users: &HashMap<String, SortedUser>) -> Result<(), StorageError> {
+        let json = serde_json::to_string_pretty(users)?;
 
         self.client
             .put_object()
@@ -186,7 +242,11 @@ impl StorageBackend for S3Storage {
             .content_type("application/json")
             .send()
             .await
-            .map_err(|e| format!("Failed to save to S3: {:?}", e))?;
+            .map_err(|e| StorageError::S3WriteError {
+                bucket: self.bucket_name.clone(),
+                key: self.object_key.clone(),
+                details: e.to_string(),
+            })?;
 
         tracing::debug!("Saved {} users to S3 storage", users.len());
         Ok(())
@@ -216,7 +276,7 @@ impl SortedUsersStorage {
     /// # Returns
     ///
     /// A new `SortedUsersStorage` instance with loaded data.
-    pub async fn new(backend: Arc<dyn StorageBackend>) -> Result<Self, String> {
+    pub async fn new(backend: Arc<dyn StorageBackend>) -> Result<Self, StorageError> {
         let users = backend.load().await.unwrap_or_else(|e| {
             tracing::warn!("Failed to load users from storage: {}, starting fresh", e);
             HashMap::new()
@@ -237,13 +297,16 @@ impl SortedUsersStorage {
     /// # Returns
     ///
     /// A configured `SortedUsersStorage` instance.
-    pub async fn from_env() -> Result<Self, String> {
+    pub async fn from_env() -> Result<Self, StorageError> {
         let storage_type = env::var("STORAGE_TYPE").unwrap_or_else(|_| "local".to_string());
 
         let backend: Arc<dyn StorageBackend> = match storage_type.to_lowercase().as_str() {
             "s3" => {
-                let bucket_name = env::var("S3_BUCKET_NAME")
-                    .map_err(|_| "S3_BUCKET_NAME must be set when using S3 storage".to_string())?;
+                let bucket_name = env::var("S3_BUCKET_NAME").map_err(|_| {
+                    StorageError::ConfigError(
+                        "S3_BUCKET_NAME must be set when using S3 storage".to_string(),
+                    )
+                })?;
 
                 let object_key = env::var("S3_STORAGE_KEY")
                     .unwrap_or_else(|_| DEFAULT_S3_KEY.to_string());
@@ -265,8 +328,8 @@ impl SortedUsersStorage {
     ///
     /// # Returns
     ///
-    /// `Ok(())` if save was successful, `Err` with error message otherwise.
-    async fn save_to_backend(&self) -> Result<(), String> {
+    /// `Ok(())` if save was successful, `Err` with error otherwise.
+    async fn save_to_backend(&self) -> Result<(), StorageError> {
         let users = self.users.read().await;
         self.backend.save(&*users).await
     }
@@ -295,7 +358,7 @@ impl SortedUsersStorage {
     /// # Returns
     ///
     /// `Ok(())` if the user was added and saved successfully, `Err` otherwise.
-    pub async fn add_sorted_user(&self, user_id: u64, house_name: &str) -> Result<(), String> {
+    pub async fn add_sorted_user(&self, user_id: u64, house_name: &str) -> Result<(), StorageError> {
         let sorted_user = SortedUser {
             house_name: house_name.to_string(),
             sorted_at: chrono::Utc::now().to_rfc3339(),
