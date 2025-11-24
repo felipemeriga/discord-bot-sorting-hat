@@ -6,6 +6,7 @@
 
 use serenity::{
     async_trait,
+    builder::{CreateActionRow, CreateButton, CreateInteractionResponse, CreateInteractionResponseMessage, CreateMessage},
     model::{gateway::Ready, guild::Member, id::GuildId, prelude::*},
     prelude::*,
 };
@@ -116,51 +117,8 @@ impl EventHandler for Handler {
             return;
         }
 
-        // Try to create DM channel first, before creating session
-        let dm_channel = match new_member.user.create_dm_channel(&ctx.http).await {
-            Ok(channel) => channel,
-            Err(e) => {
-                tracing::error!(
-                    "Failed to create DM channel for {}: {:?} - User may have DMs disabled",
-                    new_member.user.name,
-                    e
-                );
-                return;
-            }
-        };
-
-        // Welcome message in Portuguese
-        let welcome_msg = format!(
-            "Bem-vindo ao servidor, {}! 🎩✨\n\n\
-            Antes de acessar o servidor completo, você precisa ser selecionado para sua casa.\n\
-            Vou te fazer algumas perguntas e, com base nas suas respostas, você será designado para uma das nossas quatro casas:\n\n\
-            🐉 **Draco** - Líderes ousados e criativos\n\
-            🐺 **Lupus** - Disciplinados e colaborativos\n\
-            🐯 **Tigris** - Ambiciosos e performáticos\n\
-            🦅 **Aeternum** - Visionários e livres\n\n\
-            Vamos começar!",
-            new_member.user.name
-        );
-
-        // Only create session if we can send the welcome message
-        if let Err(e) = dm_channel.say(&ctx.http, &welcome_msg).await {
-            tracing::error!(
-                "Failed to send welcome message to {}: {:?} - User may have DMs disabled",
-                new_member.user.name,
-                e
-            );
-            return;
-        }
-
-        // Now create and store the session (DM was successful)
-        let session = SortingSession::new(self.config.clone());
-        {
-            let mut sessions = self.sorting_sessions.write().await;
-            sessions.insert(user_id, session);
-        }
-
-        // Send first question
-        self.send_question(&ctx, &dm_channel, user_id).await;
+        // Start the sorting process
+        self.start_sorting_for_member(ctx, new_member).await;
     }
 
     /// Handles incoming messages from users.
@@ -233,6 +191,52 @@ impl EventHandler for Handler {
                             .await;
                     }
                 }
+                "!setupsort" => {
+                    // Check if user has admin permissions
+                    if let Ok(member) = self.guild_id.member(&ctx.http, msg.author.id).await {
+                        if let Ok(permissions) = member.permissions(&ctx.cache) {
+                            if !permissions.administrator() {
+                                let _ = msg
+                                    .channel_id
+                                    .say(&ctx.http, "Você precisa de permissões de administrador para usar este comando.")
+                                    .await;
+                                return;
+                            }
+                        }
+                    }
+
+                    // Create button
+                    let button = CreateButton::new("start_sorting")
+                        .label("🎩 Iniciar Seleção")
+                        .style(serenity::model::application::ButtonStyle::Primary);
+
+                    let action_row = CreateActionRow::Buttons(vec![button]);
+
+                    // Create message with button
+                    let builder = CreateMessage::new()
+                        .content(
+                            "**Bem-vindo ao servidor!** 🎩✨\n\n\
+                            Clique no botão abaixo para iniciar sua seleção para uma das quatro casas:\n\n\
+                            🐉 **Draco** - Líderes ousados e criativos\n\
+                            🐺 **Lupus** - Disciplinados e colaborativos\n\
+                            🐯 **Tigris** - Ambiciosos e performáticos\n\
+                            🦅 **Aeternum** - Visionários e livres"
+                        )
+                        .components(vec![action_row]);
+
+                    if let Err(e) = msg.channel_id.send_message(&ctx.http, builder).await {
+                        tracing::error!("Failed to send button message: {:?}", e);
+                        let _ = msg
+                            .channel_id
+                            .say(&ctx.http, "Erro ao criar mensagem com botão.")
+                            .await;
+                    } else {
+                        let _ = msg
+                            .channel_id
+                            .say(&ctx.http, "✅ Mensagem de seleção criada com sucesso!")
+                            .await;
+                    }
+                }
                 _ => {}
             }
             return;
@@ -292,6 +296,83 @@ impl EventHandler for Handler {
                 .await
             {
                 tracing::error!("Failed to send message: {:?}", e);
+            }
+        }
+    }
+
+    /// Called when a user interacts with a component (button, select menu, etc.).
+    ///
+    /// Handles button clicks for starting the sorting process.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `interaction` - The interaction data from the component.
+    async fn interaction_create(&self, ctx: Context, interaction: Interaction) {
+        if let Interaction::Component(component) = interaction {
+            // Handle "Start Sorting" button
+            if component.data.custom_id == "start_sorting" {
+                let user = &component.user;
+                let user_id = user.id;
+
+                // Acknowledge the interaction first
+                let response = CreateInteractionResponse::Defer(
+                    CreateInteractionResponseMessage::new().ephemeral(true)
+                );
+
+                if let Err(e) = component.create_response(&ctx.http, response).await {
+                    tracing::error!("Failed to respond to interaction: {:?}", e);
+                    return;
+                }
+
+                // Check if user has already been sorted
+                if let Some(sorted_user) = self.sorted_users.get_sorted_user(user_id.get()).await {
+                    let follow_up = serenity::builder::CreateInteractionResponseFollowup::new()
+                        .content(format!(
+                            "Você já foi selecionado para a casa **{}**!\nNão é possível ser selecionado novamente.",
+                            sorted_user.house_name
+                        ))
+                        .ephemeral(true);
+
+                    let _ = component.create_followup(&ctx.http, follow_up).await;
+                    return;
+                }
+
+                // Check if user already has an active session
+                {
+                    let sessions = self.sorting_sessions.read().await;
+                    if sessions.contains_key(&user_id) {
+                        let follow_up = serenity::builder::CreateInteractionResponseFollowup::new()
+                            .content("Você já tem uma sessão de seleção ativa! Responda às perguntas na DM.")
+                            .ephemeral(true);
+
+                        let _ = component.create_followup(&ctx.http, follow_up).await;
+                        return;
+                    }
+                }
+
+                // Get member and start sorting
+                tracing::info!("Sorting triggered by button for: {}", user.name);
+                match self.guild_id.member(&ctx.http, user_id).await {
+                    Ok(member) => {
+                        // Start the sorting process (same as guild_member_addition)
+                        self.start_sorting_for_member(ctx.clone(), member).await;
+
+                        let follow_up = serenity::builder::CreateInteractionResponseFollowup::new()
+                            .content("✅ Verifique sua DM para iniciar a seleção!")
+                            .ephemeral(true);
+
+                        let _ = component.create_followup(&ctx.http, follow_up).await;
+                    }
+                    Err(e) => {
+                        tracing::error!("Failed to get member: {:?}", e);
+                        let follow_up = serenity::builder::CreateInteractionResponseFollowup::new()
+                            .content("❌ Erro ao iniciar seleção. Tente novamente.")
+                            .ephemeral(true);
+
+                        let _ = component.create_followup(&ctx.http, follow_up).await;
+                    }
+                }
             }
         }
     }
@@ -386,6 +467,65 @@ impl Handler {
                 }
             }
         }
+    }
+
+    /// Starts the sorting process for a member.
+    ///
+    /// This is a helper method that can be called both when a new member joins
+    /// and when a user clicks the sorting button.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `member` - The member to start sorting for.
+    async fn start_sorting_for_member(&self, ctx: Context, member: Member) {
+        let user_id = member.user.id;
+
+        // Try to create DM channel first, before creating session
+        let dm_channel = match member.user.create_dm_channel(&ctx.http).await {
+            Ok(channel) => channel,
+            Err(e) => {
+                tracing::error!(
+                    "Failed to create DM channel for {}: {:?} - User may have DMs disabled",
+                    member.user.name,
+                    e
+                );
+                return;
+            }
+        };
+
+        // Welcome message in Portuguese
+        let welcome_msg = format!(
+            "Bem-vindo ao servidor, {}! 🎩✨\n\n\
+            Antes de acessar o servidor completo, você precisa ser selecionado para sua casa.\n\
+            Vou te fazer algumas perguntas e, com base nas suas respostas, você será designado para uma das nossas quatro casas:\n\n\
+            🐉 **Draco** - Líderes ousados e criativos\n\
+            🐺 **Lupus** - Disciplinados e colaborativos\n\
+            🐯 **Tigris** - Ambiciosos e performáticos\n\
+            🦅 **Aeternum** - Visionários e livres\n\n\
+            Vamos começar!",
+            member.user.name
+        );
+
+        // Only create session if we can send the welcome message
+        if let Err(e) = dm_channel.say(&ctx.http, &welcome_msg).await {
+            tracing::error!(
+                "Failed to send welcome message to {}: {:?} - User may have DMs disabled",
+                member.user.name,
+                e
+            );
+            return;
+        }
+
+        // Now create and store the session (DM was successful)
+        let session = SortingSession::new(self.config.clone());
+        {
+            let mut sessions = self.sorting_sessions.write().await;
+            sessions.insert(user_id, session);
+        }
+
+        // Send first question
+        self.send_question(&ctx, &dm_channel, user_id).await;
     }
 }
 

@@ -202,21 +202,47 @@ The bot uses the AWS SDK's default credential chain. You can provide credentials
 
 ## How It Works
 
+### Automatic Sorting (New Member Joins)
 1. When a new member joins the server, the bot checks if they've been sorted before
 2. If they have been sorted before, they receive a welcome back message with their house
 3. If they haven't been sorted, the bot sends them a DM in Portuguese with quiz questions
-4. The user responds by entering a number (1-4) for each question
-5. After all questions are answered, the bot:
+
+### Manual Sorting (Button or Command)
+1. An admin can use `!setupsort` to post a button in a channel
+2. Users click the "🎩 Iniciar Seleção" button to start the quiz
+3. Alternatively, users can type `!testsort` in any channel
+
+### Quiz Process
+1. The user receives quiz questions via DM in Portuguese
+2. The user responds by entering a number (1-4) for each question
+3. After all questions are answered, the bot:
    - Calculates trait scores based on the user's answers
    - Determines which house best matches those traits (Draco, Lupus, Tigris, or Aeternum)
    - Assigns the corresponding role to the user
-   - Saves the result to `sorted_users.json` for persistence
+   - Saves the result to persistent storage for future sessions
    - Notifies them of their house assignment in Portuguese
 
 ## Commands
 
 - `!testsort` - Start a test sorting session (useful for testing the bot). Note: This will not work if you have already been sorted.
 - `!resetsort` - Reset your current sorting session if you want to start over (only cancels an active quiz, doesn't allow re-sorting)
+- `!setupsort` - (Admin only) Posts a message with a button that users can click to start the sorting quiz. This is a user-friendly alternative to typing commands.
+
+### Setting Up the Button Interface
+
+For a better user experience, you can set up a button that users can click to start the sorting quiz:
+
+1. Create a channel (e.g., #welcome or #sorting) where new members can start their sorting
+2. Run the `!setupsort` command in that channel (requires administrator permissions)
+3. The bot will post a message with a "🎩 Iniciar Seleção" button
+4. Users can click the button to start the sorting quiz via DM
+
+**Benefits of the button interface:**
+- No need to type commands
+- Clear visual indication of how to start
+- Works on mobile and desktop
+- Prevents typos and command confusion
+- More intuitive for new members
 
 ## Troubleshooting
 
