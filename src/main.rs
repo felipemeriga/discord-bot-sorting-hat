@@ -212,18 +212,23 @@ impl EventHandler for Handler {
 
                     let action_row = CreateActionRow::Buttons(vec![button]);
 
-                    // Create message explaining auto-DM with button as fallback
+                    // Create welcome message with button as fallback
                     let builder = CreateMessage::new()
                         .content(
-                            "**Bem-vindo ao servidor!** 🎩✨\n\n\
-                            📬 **O bot já enviou uma mensagem direta (DM) para você!**\n\
-                            Verifique suas mensagens privadas para iniciar a seleção.\n\n\
-                            Você será selecionado para uma das quatro casas:\n\
-                            🐉 **Draco** - Líderes ousados e criativos\n\
-                            🐺 **Lupus** - Disciplinados e colaborativos\n\
-                            🐯 **Tigris** - Ambiciosos e performáticos\n\
-                            🦅 **Aeternum** - Visionários e livres\n\n\
-                            ⚠️ **Não recebeu a DM?** Verifique se suas DMs estão habilitadas ou clique no botão abaixo:"
+                            "🎓 **Bem-vindo ao Além do Código!**\n\n\
+                            Você está no **Salão de Entrada** — o único canal liberado antes de escolher sua Casa.\n\
+                            Aqui começa sua jornada na comunidade, onde aprendizado, carreira e tecnologia se encontram com criatividade, leveza e evolução.\n\n\
+                            Para ter acesso a todos os canais, desafios e eventos, você precisa escolher sua Casa no sistema de Sorting.\n\n\
+                            Cada Casa representa um estilo de energia, valores e forma de crescer dentro da comunidade:\n\n\
+                            🐉 **Draco** — coragem, intensidade e criação\n\
+                            🐺 **Lupus** — disciplina, união e estratégia\n\
+                            🐯 **Tigris** — performance, foco e excelência\n\
+                            🦅 **Aeternum** — visão, inovação e liberdade\n\n\
+                            **O Chapéu Seletor (eu 😎) já enviou uma DM com o teste para você.**\n\
+                            Se a mensagem não chegou, é só usar o botão abaixo para reenviar.\n\n\
+                            Esse passo libera todos os canais, papéis e recompensas da comunidade.\n\n\
+                            *Escolha com sabedoria.*\n\
+                            *Sua jornada começa agora.*"
                         )
                         .components(vec![action_row]);
 
