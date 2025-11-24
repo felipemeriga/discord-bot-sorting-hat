@@ -415,8 +415,12 @@ async fn main() {
     let config: Config = serde_json::from_str(&config_str).expect("Failed to parse config.json");
     let config = Arc::new(config);
 
-    // Load sorted users storage
-    let sorted_users = Arc::new(SortedUsersStorage::new());
+    // Load sorted users storage from environment configuration
+    let sorted_users = Arc::new(
+        SortedUsersStorage::from_env()
+            .await
+            .expect("Failed to initialize storage"),
+    );
     tracing::info!("Loaded {} previously sorted users", sorted_users.count().await);
 
     // Set up required gateway intents for the bot
