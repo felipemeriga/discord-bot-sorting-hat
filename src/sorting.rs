@@ -1,15 +1,39 @@
+//! Sorting session module for the Discord Sorting Hat bot.
+//!
+//! This module handles the sorting quiz logic, including tracking user progress,
+//! recording answers, and calculating the final house assignment based on trait scores.
+
 use crate::config::{Config, House};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Instant;
 
+/// Session timeout duration in seconds (30 minutes).
+const SESSION_TIMEOUT_SECS: u64 = 30 * 60;
+
+/// Represents an active sorting session for a user.
+///
+/// Tracks the user's progress through the sorting quiz, including their answers
+/// and when the session was created for expiration purposes.
 pub struct SortingSession {
+    /// Index of the current question (0-based).
     pub current_question: usize,
+    /// List of answer indices selected by the user for each question.
     pub answers: Vec<usize>,
+    /// Timestamp when the session was created, used for expiration checks.
     pub created_at: Instant,
 }
 
 impl SortingSession {
+    /// Creates a new sorting session for a user.
+    ///
+    /// # Arguments
+    ///
+    /// * `_config` - Reference to the bot configuration (reserved for future use).
+    ///
+    /// # Returns
+    ///
+    /// A new `SortingSession` initialized at the first question with no answers.
     pub fn new(_config: Arc<Config>) -> Self {
         Self {
             current_question: 0,
@@ -18,16 +42,48 @@ impl SortingSession {
         }
     }
 
-    /// Check if session has expired (default: 30 minutes)
+    /// Checks if the session has expired.
+    ///
+    /// Sessions expire after 30 minutes of inactivity to prevent stale sessions
+    /// from accumulating in memory.
+    ///
+    /// # Returns
+    ///
+    /// `true` if the session has exceeded the timeout duration, `false` otherwise.
     pub fn is_expired(&self) -> bool {
-        self.created_at.elapsed().as_secs() > 30 * 60
+        self.created_at.elapsed().as_secs() > SESSION_TIMEOUT_SECS
     }
 
+    /// Records a user's answer for the current question.
+    ///
+    /// Stores the selected answer index and advances to the next question.
+    ///
+    /// # Arguments
+    ///
+    /// * `answer_index` - The 0-based index of the selected answer option.
     pub fn record_answer(&mut self, answer_index: usize) {
         self.answers.push(answer_index);
         self.current_question += 1;
     }
 
+    /// Determines which house the user should be sorted into.
+    ///
+    /// Calculates trait scores based on all recorded answers, then matches
+    /// those scores against each house's associated traits to find the best fit.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Reference to the bot configuration containing houses and questions.
+    ///
+    /// # Returns
+    ///
+    /// A clone of the `House` with the highest matching score.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Accumulate trait points from all selected answers
+    /// 2. For each house, sum the points of its associated traits
+    /// 3. Return the house with the highest total score
     pub fn determine_house(&self, config: &Config) -> House {
         // Calculate trait scores based on answers
         let mut trait_scores: HashMap<String, u32> = HashMap::new();
@@ -71,6 +127,10 @@ mod tests {
     use super::*;
     use crate::config::{House, Question, QuestionOption};
 
+    /// Tests the basic sorting session functionality.
+    ///
+    /// Verifies that a user who selects a "brave" option is sorted into
+    /// the house associated with the "brave" trait.
     #[test]
     fn test_sorting_session() {
         let houses = vec![
