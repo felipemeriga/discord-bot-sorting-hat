@@ -207,10 +207,10 @@ The bot uses the AWS SDK's default credential chain. You can provide credentials
 2. If they have been sorted before, they receive a welcome back message with their house
 3. If they haven't been sorted, the bot sends them a DM in Portuguese with quiz questions
 
-### Manual Sorting (Button or Command)
-1. An admin can use `!setupsort` to post a button in a channel
-2. Users click the "🎩 Iniciar Seleção" button to start the quiz
-3. Alternatively, users can type `!testsort` in any channel
+### Fallback Options (If DM Not Received)
+1. Users can click the "📨 Não recebeu a DM? Clique aqui" button in the welcome channel
+2. Alternatively, users can type `!testsort` in any channel
+3. Both options will trigger the bot to send the quiz via DM
 
 ### Quiz Process
 1. The user receives quiz questions via DM in Portuguese
@@ -226,23 +226,31 @@ The bot uses the AWS SDK's default credential chain. You can provide credentials
 
 - `!testsort` - Start a test sorting session (useful for testing the bot). Note: This will not work if you have already been sorted.
 - `!resetsort` - Reset your current sorting session if you want to start over (only cancels an active quiz, doesn't allow re-sorting)
-- `!setupsort` - (Admin only) Posts a message with a button that users can click to start the sorting quiz. This is a user-friendly alternative to typing commands.
+- `!setupsort` - (Admin only) Posts an informational message explaining that the bot automatically DMs users, with a fallback button for users who didn't receive the DM.
 
-### Setting Up the Button Interface
+### Setting Up the Welcome Message
 
-For a better user experience, you can set up a button that users can click to start the sorting quiz:
+For a better user experience, set up a pinned message in your welcome channel:
 
-1. Create a channel (e.g., #welcome or #sorting) where new members can start their sorting
+1. Create a welcome/sorting channel where new members first arrive
 2. Run the `!setupsort` command in that channel (requires administrator permissions)
-3. The bot will post a message with a "🎩 Iniciar Seleção" button
-4. Users can click the button to start the sorting quiz via DM
+3. The bot will post a message explaining:
+   - The bot automatically DMs users when they join
+   - Users should check their private messages
+   - A fallback button for users who didn't receive the DM
 
-**Benefits of the button interface:**
-- No need to type commands
-- Clear visual indication of how to start
+**The message includes:**
+- Clear explanation that the bot already sent a DM
+- List of the four houses
+- A "📨 Não recebeu a DM? Clique aqui" button as backup
+- Instructions to check DM settings if not received
+
+**Benefits:**
+- Clarifies that DM was already sent
+- Reduces confusion about where to start
+- Provides backup option if DM was missed
 - Works on mobile and desktop
-- Prevents typos and command confusion
-- More intuitive for new members
+- Can be pinned for easy reference
 
 ## Troubleshooting
 

@@ -205,22 +205,25 @@ impl EventHandler for Handler {
                         }
                     }
 
-                    // Create button
+                    // Create button as fallback
                     let button = CreateButton::new("start_sorting")
-                        .label("🎩 Iniciar Seleção")
-                        .style(serenity::model::application::ButtonStyle::Primary);
+                        .label("📨 Não recebeu a DM? Clique aqui")
+                        .style(serenity::model::application::ButtonStyle::Secondary);
 
                     let action_row = CreateActionRow::Buttons(vec![button]);
 
-                    // Create message with button
+                    // Create message explaining auto-DM with button as fallback
                     let builder = CreateMessage::new()
                         .content(
                             "**Bem-vindo ao servidor!** 🎩✨\n\n\
-                            Clique no botão abaixo para iniciar sua seleção para uma das quatro casas:\n\n\
+                            📬 **O bot já enviou uma mensagem direta (DM) para você!**\n\
+                            Verifique suas mensagens privadas para iniciar a seleção.\n\n\
+                            Você será selecionado para uma das quatro casas:\n\
                             🐉 **Draco** - Líderes ousados e criativos\n\
                             🐺 **Lupus** - Disciplinados e colaborativos\n\
                             🐯 **Tigris** - Ambiciosos e performáticos\n\
-                            🦅 **Aeternum** - Visionários e livres"
+                            🦅 **Aeternum** - Visionários e livres\n\n\
+                            ⚠️ **Não recebeu a DM?** Verifique se suas DMs estão habilitadas ou clique no botão abaixo:"
                         )
                         .components(vec![action_row]);
 
