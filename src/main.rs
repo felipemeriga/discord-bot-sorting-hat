@@ -14,9 +14,11 @@ use tokio::sync::RwLock;
 
 mod config;
 mod sorting;
+mod storage;
 
 use config::{Config, House};
 use sorting::SortingSession;
+use storage::SortedUsersStorage;
 
 /// Main event handler for the Discord bot.
 ///
@@ -29,6 +31,8 @@ struct Handler {
     sorting_sessions: Arc<RwLock<HashMap<UserId, SortingSession>>>,
     /// The Discord guild (server) ID where the bot operates.
     guild_id: GuildId,
+    /// Persistent storage for users who have been sorted.
+    sorted_users: Arc<SortedUsersStorage>,
 }
 
 #[async_trait]
@@ -40,7 +44,12 @@ impl EventHandler for Handler {
     /// * `_` - The Discord context (unused).
     /// * `ready` - Information about the connected bot user.
     async fn ready(&self, _: Context, ready: Ready) {
-        tracing::info!("{} is connected!", ready.user.name);
+        let sorted_count = self.sorted_users.count().await;
+        tracing::info!(
+            "{} is connected! {} users have been sorted.",
+            ready.user.name,
+            sorted_count
+        );
     }
 
     /// Called when a member leaves the guild.
@@ -84,6 +93,28 @@ impl EventHandler for Handler {
         tracing::info!("New member joined: {}", new_member.user.name);
 
         let user_id = new_member.user.id;
+
+        // Check if user has already been sorted
+        if let Some(sorted_user) = self.sorted_users.get_sorted_user(user_id.get()).await {
+            tracing::info!(
+                "User {} has already been sorted to house {}",
+                new_member.user.name,
+                sorted_user.house_name
+            );
+
+            // Send message that they've already been sorted (in Portuguese)
+            if let Ok(dm_channel) = new_member.user.create_dm_channel(&ctx.http).await {
+                let already_sorted_msg = format!(
+                    "Olá, {}! 🎩\n\n\
+                    Você já foi selecionado para a casa **{}**!\n\
+                    Não é possível ser selecionado novamente.\n\n\
+                    Bem-vindo de volta ao servidor!",
+                    new_member.user.name, sorted_user.house_name
+                );
+                let _ = dm_channel.say(&ctx.http, &already_sorted_msg).await;
+            }
+            return;
+        }
 
         // Try to create DM channel first, before creating session
         let dm_channel = match new_member.user.create_dm_channel(&ctx.http).await {
@@ -151,6 +182,21 @@ impl EventHandler for Handler {
         if msg.guild_id.is_some() {
             match msg.content.as_str() {
                 "!testsort" => {
+                    // Check if user has already been sorted
+                    if let Some(sorted_user) = self.sorted_users.get_sorted_user(msg.author.id.get()).await {
+                        let _ = msg
+                            .channel_id
+                            .say(
+                                &ctx.http,
+                                &format!(
+                                    "Você já foi selecionado para a casa **{}**! Não é possível ser selecionado novamente.",
+                                    sorted_user.house_name
+                                ),
+                            )
+                            .await;
+                        return;
+                    }
+
                     // Check if user already has an active session
                     {
                         let sessions = self.sorting_sessions.read().await;
@@ -305,6 +351,11 @@ impl Handler {
     async fn assign_house(&self, ctx: &Context, user_id: UserId, house: &House) {
         tracing::info!("Assigning {} to house: {}", user_id, house.name);
 
+        // Save the sorted user to persistent storage
+        if let Err(e) = self.sorted_users.add_sorted_user(user_id.get(), &house.name).await {
+            tracing::error!("Failed to save sorted user: {}", e);
+        }
+
         // Send result to user via DM (in Portuguese)
         if let Ok(dm_channel) = user_id.create_dm_channel(&ctx.http).await {
             let result_msg = format!(
@@ -364,6 +415,10 @@ async fn main() {
     let config: Config = serde_json::from_str(&config_str).expect("Failed to parse config.json");
     let config = Arc::new(config);
 
+    // Load sorted users storage
+    let sorted_users = Arc::new(SortedUsersStorage::new());
+    tracing::info!("Loaded {} previously sorted users", sorted_users.count().await);
+
     // Set up required gateway intents for the bot
     let intents = GatewayIntents::GUILD_MEMBERS
         | GatewayIntents::GUILDS
@@ -376,6 +431,7 @@ async fn main() {
         config,
         sorting_sessions: Arc::new(RwLock::new(HashMap::new())),
         guild_id: GuildId::new(guild_id),
+        sorted_users,
     };
 
     // Create and configure the Discord client
