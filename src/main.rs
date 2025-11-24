@@ -1,3 +1,9 @@
+//! Discord Sorting Hat Bot
+//!
+//! A Discord bot that sorts new members into houses through an interactive quiz.
+//! When new members join the server, they receive a DM with questions in Portuguese
+//! and are assigned to one of four houses based on their answers.
+
 use serenity::{
     async_trait,
     model::{gateway::Ready, guild::Member, id::GuildId, prelude::*},
@@ -12,18 +18,42 @@ mod sorting;
 use config::{Config, House};
 use sorting::SortingSession;
 
+/// Main event handler for the Discord bot.
+///
+/// Manages sorting sessions and handles Discord events such as member joins,
+/// member departures, and incoming messages.
 struct Handler {
+    /// Shared bot configuration loaded from config.json.
     config: Arc<Config>,
+    /// Map of active sorting sessions indexed by user ID.
     sorting_sessions: Arc<RwLock<HashMap<UserId, SortingSession>>>,
+    /// The Discord guild (server) ID where the bot operates.
     guild_id: GuildId,
 }
 
 #[async_trait]
 impl EventHandler for Handler {
+    /// Called when the bot successfully connects to Discord.
+    ///
+    /// # Arguments
+    ///
+    /// * `_` - The Discord context (unused).
+    /// * `ready` - Information about the connected bot user.
     async fn ready(&self, _: Context, ready: Ready) {
         tracing::info!("{} is connected!", ready.user.name);
     }
 
+    /// Called when a member leaves the guild.
+    ///
+    /// Cleans up any active sorting session for the departing user to prevent
+    /// stale sessions from accumulating in memory.
+    ///
+    /// # Arguments
+    ///
+    /// * `_ctx` - The Discord context (unused).
+    /// * `_guild_id` - The guild ID (unused).
+    /// * `user` - The user who left.
+    /// * `_member` - Optional member data if cached (unused).
     async fn guild_member_removal(
         &self,
         _ctx: Context,
@@ -41,6 +71,15 @@ impl EventHandler for Handler {
         }
     }
 
+    /// Called when a new member joins the guild.
+    ///
+    /// Initiates the sorting process by sending a welcome message via DM
+    /// and starting the quiz with the first question.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `new_member` - The member who just joined.
     async fn guild_member_addition(&self, ctx: Context, new_member: Member) {
         tracing::info!("New member joined: {}", new_member.user.name);
 
@@ -59,6 +98,7 @@ impl EventHandler for Handler {
             }
         };
 
+        // Welcome message in Portuguese
         let welcome_msg = format!(
             "Bem-vindo ao servidor, {}! 🎩✨\n\n\
             Antes de acessar o servidor completo, você precisa ser selecionado para sua casa.\n\
@@ -92,6 +132,15 @@ impl EventHandler for Handler {
         self.send_question(&ctx, &dm_channel, user_id).await;
     }
 
+    /// Handles incoming messages from users.
+    ///
+    /// Processes both guild commands (!testsort, !resetsort) and DM responses
+    /// to sorting quiz questions.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `msg` - The received message.
     async fn message(&self, ctx: Context, msg: Message) {
         // Ignore bot messages
         if msg.author.bot {
@@ -190,7 +239,7 @@ impl EventHandler for Handler {
                 }
             }
 
-            // Invalid input
+            // Invalid input - prompt user to enter valid number (in Portuguese)
             if let Err(e) = msg
                 .channel_id
                 .say(&ctx.http, "Por favor, digite um número entre 1 e 4.")
@@ -203,6 +252,16 @@ impl EventHandler for Handler {
 }
 
 impl Handler {
+    /// Sends the current question to a user via DM.
+    ///
+    /// Retrieves the current question from the user's session and formats it
+    /// with numbered options for easy response.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `dm_channel` - The user's DM channel.
+    /// * `user_id` - The ID of the user to send the question to.
     async fn send_question(
         &self,
         ctx: &Context,
@@ -215,6 +274,7 @@ impl Handler {
             if question_idx < self.config.questions.len() {
                 let question = &self.config.questions[question_idx];
 
+                // Format question with options (questions are in Portuguese)
                 let mut msg = format!(
                     "\n**Pergunta {}:**\n{}\n\n",
                     question_idx + 1,
@@ -232,10 +292,20 @@ impl Handler {
         }
     }
 
+    /// Assigns a house role to a user after sorting is complete.
+    ///
+    /// Sends a congratulatory message to the user via DM and assigns the
+    /// corresponding Discord role in the guild.
+    ///
+    /// # Arguments
+    ///
+    /// * `ctx` - The Discord context for API calls.
+    /// * `user_id` - The ID of the user to assign the house to.
+    /// * `house` - The house the user was sorted into.
     async fn assign_house(&self, ctx: &Context, user_id: UserId, house: &House) {
         tracing::info!("Assigning {} to house: {}", user_id, house.name);
 
-        // Send result to user via DM
+        // Send result to user via DM (in Portuguese)
         if let Ok(dm_channel) = user_id.create_dm_channel(&ctx.http).await {
             let result_msg = format!(
                 "🎉 **A Seleção está completa!**\n\n\
@@ -268,40 +338,47 @@ impl Handler {
     }
 }
 
+/// Application entry point.
+///
+/// Initializes logging, loads configuration, sets up the Discord client,
+/// and starts the bot.
 #[tokio::main]
 async fn main() {
     // Initialize logging
     tracing_subscriber::fmt::init();
 
-    // Load environment variables
+    // Load environment variables from .env file
     dotenv::dotenv().ok();
 
+    // Get Discord token from environment
     let token = env::var("DISCORD_TOKEN").expect("Expected DISCORD_TOKEN in environment");
+
+    // Get guild ID from environment and parse it
     let guild_id: u64 = env::var("GUILD_ID")
         .expect("Expected GUILD_ID")
         .parse()
         .expect("GUILD_ID must be a valid u64");
 
-    // Load config
+    // Load configuration from config.json
     let config_str = fs::read_to_string("config.json").expect("Failed to read config.json");
     let config: Config = serde_json::from_str(&config_str).expect("Failed to parse config.json");
     let config = Arc::new(config);
 
-    // Set up intents
+    // Set up required gateway intents for the bot
     let intents = GatewayIntents::GUILD_MEMBERS
         | GatewayIntents::GUILDS
         | GatewayIntents::GUILD_MESSAGES  // Required to receive messages in channels
         | GatewayIntents::DIRECT_MESSAGES
         | GatewayIntents::MESSAGE_CONTENT;
 
-    // Create handler
+    // Create the event handler with configuration
     let handler = Handler {
         config,
         sorting_sessions: Arc::new(RwLock::new(HashMap::new())),
         guild_id: GuildId::new(guild_id),
     };
 
-    // Create client
+    // Create and configure the Discord client
     let mut client = Client::builder(&token, intents)
         .event_handler(handler)
         .await
