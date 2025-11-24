@@ -1,0 +1,135 @@
+{
+  "houses": [
+    {
+      "name": "Draco",
+      "role_name": "🐉 Draco",
+      "description": "🐉 Casa dos líderes ousados, criativos e movidos a ação. Onde criamos, queimamos limites.",
+      "traits": ["courage", "creativity", "initiative", "intensity"]
+    },
+    {
+      "name": "Lupus",
+      "role_name": "🐺 Lupus",
+      "description": "🐺 Casa dos disciplinados, colaborativos e unidos como uma alcateia. Sozinho você vai rápido. Em equipe você vai longe.",
+      "traits": ["loyalty", "discipline", "community", "focus"]
+    },
+    {
+      "name": "Tigris",
+      "role_name": "🐯 Tigris",
+      "description": "🐯 Casa dos ambiciosos, performáticos e focados em excelência. Nada menos que o melhor.",
+      "traits": ["ambition", "excellence", "focus", "performance"]
+    },
+    {
+      "name": "Aeternum",
+      "role_name": "🦅 Aeternum",
+      "description": "🦅 Casa dos visionários, criativos e livres. Enxerga além do código.",
+      "traits": ["freedom", "innovation", "vision", "autonomy"]
+    }
+  ],
+  "questions": [
+    {
+      "question": "Quando você enfrenta um desafio complexo, qual é sua primeira reação?",
+      "options": [
+        {
+          "text": "Buscar a melhor solução possível, mesmo que demore mais",
+          "traits": {"excellence": 3, "focus": 2, "performance": 1}
+        },
+        {
+          "text": "Pensar fora da caixa e experimentar abordagens inovadoras",
+          "traits": {"innovation": 3, "vision": 2, "freedom": 2}
+        },
+        {
+          "text": "Partir para ação imediatamente e resolver na raça",
+          "traits": {"courage": 3, "initiative": 2, "intensity": 2}
+        },
+        {
+          "text": "Reunir a equipe e traçar um plano conjunto",
+          "traits": {"community": 3, "discipline": 2, "loyalty": 1}
+        }
+      ]
+    },
+    {
+      "question": "O que mais te motiva em um projeto?",
+      "options": [
+        {
+          "text": "Ter liberdade para inovar e explorar novas possibilidades",
+          "traits": {"freedom": 3, "innovation": 2, "autonomy": 2}
+        },
+        {
+          "text": "Criar algo do zero e ver minha ideia ganhando vida",
+          "traits": {"creativity": 3, "initiative": 2, "courage": 1}
+        },
+        {
+          "text": "Colaborar com pessoas talentosas e construir junto",
+          "traits": {"community": 3, "loyalty": 2, "discipline": 1}
+        },
+        {
+          "text": "Superar metas e entregar resultados acima da média",
+          "traits": {"ambition": 3, "performance": 2, "excellence": 2}
+        }
+      ]
+    },
+    {
+      "question": "Como você prefere trabalhar?",
+      "options": [
+        {
+          "text": "Em equipe, com processos bem definidos e organização",
+          "traits": {"discipline": 3, "community": 2, "focus": 2}
+        },
+        {
+          "text": "Com metas claras de performance e métricas de sucesso",
+          "traits": {"performance": 3, "ambition": 2, "excellence": 2}
+        },
+        {
+          "text": "Com autonomia total para decidir o caminho",
+          "traits": {"autonomy": 3, "freedom": 2, "vision": 1}
+        },
+        {
+          "text": "De forma intensa e acelerada, com energia alta",
+          "traits": {"intensity": 3, "courage": 2, "initiative": 1}
+        }
+      ]
+    },
+    {
+      "question": "Qual frase mais combina com você?",
+      "options": [
+        {
+          "text": "Prefiro me arrepender do que fiz do que do que não fiz",
+          "traits": {"courage": 3, "intensity": 2, "creativity": 1}
+        },
+        {
+          "text": "As melhores soluções vêm de perspectivas diferentes",
+          "traits": {"vision": 3, "innovation": 2, "freedom": 1}
+        },
+        {
+          "text": "Juntos somos mais fortes",
+          "traits": {"community": 3, "loyalty": 3, "discipline": 1}
+        },
+        {
+          "text": "Bom não é bom o suficiente quando ótimo é possível",
+          "traits": {"excellence": 3, "ambition": 2, "performance": 2}
+        }
+      ]
+    },
+    {
+      "question": "Qual é seu maior valor pessoal?",
+      "options": [
+        {
+          "text": "Ambição de sempre evoluir e crescer",
+          "traits": {"ambition": 3, "excellence": 2, "focus": 1}
+        },
+        {
+          "text": "Coragem para arriscar e inovar",
+          "traits": {"courage": 3, "creativity": 2, "initiative": 2}
+        },
+        {
+          "text": "Liberdade para seguir minha própria visão",
+          "traits": {"freedom": 3, "autonomy": 2, "vision": 2}
+        },
+        {
+          "text": "Lealdade às pessoas e aos compromissos",
+          "traits": {"loyalty": 3, "discipline": 2, "community": 2}
+        }
+      ]
+    }
+  ]
+}
